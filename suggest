@@ -1,0 +1,70 @@
+#!/usr/bin/env perl
+
+use strict;
+use warnings;
+
+die q=
+suggest - make suggestions for npm
+
+Usage:
+
+  ./suggest Node Pickup Miniature
+
+  (go to github and submit a pull request)
+
+= unless @ARGV;
+
+my $s  = join ' ', @ARGV;
+
+sub run {
+  system $_[0] and die "Failed to execute '$_[0]'";
+}
+
+sub simple {
+  my $s = shift;
+  $s = lc $s =~ s/[^a-z0-9]+/-/gri;
+  $s =~ s/^-|-$//g;
+  $s;
+}
+
+my $pr = 'pr-' . simple $s;
+
+my $fn = 'expansions.txt';
+
+run qq(git remote | grep npm || git remote add npm https://github.com/npm/npm-expansions);
+run qq(git checkout master && git fetch npm && git rebase npm/master && git checkout npm/master);
+run qq(git checkout -b $pr);
+
+my @suggestions;
+my $done;
+
+{
+  open my $fh, '<:encoding(utf8)', $fn;
+
+  while ( <$fh> ) {
+    chomp;
+    if ( !$done and /^[Nn]/ and ( simple ($s) lt simple ($_) ) ) {
+      push @suggestions, $s;
+      $done++;
+    }
+    push @suggestions, $_;
+  }
+  close $fh;
+}
+
+{
+  open my $fh, '>:encoding(utf8)', $fn;
+  print $fh "$_\n" for @suggestions;
+  close $fh;
+}
+
+run "git add $fn";
+$s =~ tr/\"\\//d;
+run qq(git commit -m "Suggested $s");
+
+run qq(git push origin $pr);
+
+run qq(git checkout suggester);
+
+# fin
+
